@@ -3,7 +3,8 @@ const cors = require('cors');
 const http = require('http');
 const ss = require('socket.io-stream');
 const streamTo = require('stream-to-array');
-const io = require('socket.io');
+const ioSocket = require('socket.io');
+const kafka = require('./kafka');
 const {
   PORT,
   STREAM_PORT,
@@ -11,7 +12,6 @@ const {
   ENV,
   KAFKA_TOPIC_VIDEO,
 } = require('./config');
-const kafka = require('./kafka');
 
 const CORS_WHITELIST = [FRONTEND_URL];
 
@@ -29,12 +29,14 @@ const app = express();
 app.use(cors(corsOption));
 const server = http.createServer(app);
 
+let io;
+
 if (ENV === 'dev') {
-  io(STREAM_PORT, {
+  io = ioSocket(STREAM_PORT, {
     cors: { origin: FRONTEND_URL, methods: ['GET', 'POST'] },
   });
 } else {
-  io(server, { path: '/video-socket' });
+  io = ioSocket(server, { path: '/video-socket' });
 }
 
 const producer = kafka.producer();
@@ -59,9 +61,7 @@ io.on('connect', (client) => {
   client.emit('server_setup', `Server connected [id=${client.id}]`);
 
   ss(client).on('videoStream', (stream, data) => {
-    console.log(
-      `[id=${client.id}; email=${data.email}; type=video]: getting data`,
-    );
+    console.log(`[id=${client.id}; email=${data.email}; type=video]: getting data`);
 
     const filename = `streams/raw/${data.email}/video/${data.begin}/${data.email}_${data.counter}.webm`;
 
@@ -79,34 +79,6 @@ io.on('connect', (client) => {
             file: Buffer.concat(file).toString('binary'),
           },
           `[id=${client.id}; email=${data.email}; type=video]: send to kafka`,
-        ).catch(console.error);
-      } else {
-        console.log(err);
-      }
-    });
-  });
-
-  ss(client).on('screenStream', (stream, data) => {
-    console.log(
-      `[id=${client.id}; email=${data.email}; type=screen]: getting data`,
-    );
-
-    const filename = `streams/raw/${data.email}/screen/${data.begin}/${data.email}_${data.counter}.webm`;
-
-    streamTo(stream, (err, file) => {
-      if (!err) {
-        run(
-          {
-            meta: {
-              path: filename,
-              username: data.email,
-              type: 'screen',
-              date_begin: data.begin,
-              date_now: data.counter,
-            },
-            file: Buffer.concat(file).toString('binary'),
-          },
-          `[id=${client.id}; email=${data.email}; type=screen]: send to kafka`,
         ).catch(console.error);
       } else {
         console.log(err);

@@ -6,7 +6,13 @@ const {
   KAFKA_CLIENT_ID,
 } = require('./config');
 
-const sasl = username && password ? { username, password, mechanism: 'plain' } : null;
+const sasl = username && password
+  ? {
+    username,
+    password,
+    mechanism: 'plain',
+  }
+  : null;
 const ssl = !!sasl;
 
 const kafka = new Kafka({
